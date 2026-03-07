@@ -1,0 +1,23 @@
+add_library(fftlib_objects OBJECT
+    src/fftlib.cpp
+    )
+
+target_link_libraries(fftlib_objects PRIVATE ${VASP_EXTERNAL_LIBS})
+set_property(TARGET fftlib_objects PROPERTY CXX_STANDARD 14)
+set_property(TARGET fftlib_objects PROPERTY CXX_STANDARD_REQUIRED On)
+# __fp16 type used by some FFTW implementations not supported by some compilers like nvhpc
+target_compile_definitions(fftlib_objects PRIVATE FFTLIB_THREADSAFE __fp16=float)
+target_include_directories(fftlib_objects PRIVATE include)
+target_compile_options(fftlib_objects PRIVATE ${VASP_OFLAG_DEFAULT})
+# Propagate C++ equivalent of target CPU flags if using compatible compilers
+if(VASP_TARGET_CPU)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
+    target_compile_options(fftlib_objects PRIVATE -march=${VASP_TARGET_CPU})
+  elseif(CMAKE_CXX_COMPILER_ID STREQUAL "NVHPC")
+    target_compile_options(fftlib_objects PRIVATE -tp=${VASP_TARGET_CPU})
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
+  target_compile_options(fftlib_objects PRIVATE -march=native)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "NVHPC")
+  target_compile_options(fftlib_objects PRIVATE -tp=host)
+endif()

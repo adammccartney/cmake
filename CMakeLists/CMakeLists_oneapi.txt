@@ -1,0 +1,27 @@
+# Create static library
+add_library(ZeInterface STATIC
+    ze_device_get_uuid.cpp
+)
+add_library(VASP::ZeInterface ALIAS ZeInterface)
+
+# Set target properties
+set_target_properties(ZeInterface PROPERTIES
+    OUTPUT_NAME "ZeInterface"
+    ARCHIVE_OUTPUT_NAME "ZeInterface"
+)
+
+# Set compiler flags
+target_compile_options(ZeInterface PRIVATE
+    -fopenmp-targets=${VASP_GPU_FLAG}
+)
+# Propagate target CPU flags for host code
+if(VASP_TARGET_CPU)
+  target_compile_options(ZeInterface PRIVATE -march=${VASP_TARGET_CPU})
+else()
+  target_compile_options(ZeInterface PRIVATE -march=native)
+endif()
+
+# Link OpenMP
+target_link_libraries(ZeInterface PRIVATE
+    OpenMP::OpenMP_CXX
+)

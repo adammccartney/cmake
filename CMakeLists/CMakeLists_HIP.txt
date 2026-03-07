@@ -1,0 +1,58 @@
+# HIP/CMakeLists.txt
+
+find_program(HIPCC_EXECUTABLE hipcc HINTS ${ROCM_PATH}/bin /opt/rocm/bin)
+if(NOT HIPCC_EXECUTABLE)
+  message(FATAL_ERROR "hipcc not found")
+endif()
+message(STATUS "Using hipcc: ${HIPCC_EXECUTABLE}")
+
+set(HIP_SOURCES
+    runtime_interface.cpp
+    rocblas_interface.cpp
+    rocfft_interface.cpp
+    rccl_interface.cpp
+)
+
+# Set HIP optimization and target CPU flags
+set(HIP_OPT_FLAGS "-O3")
+if(VASP_TARGET_CPU)
+  set(HIP_TARGET_FLAGS "-march=${VASP_TARGET_CPU}")
+else()
+  set(HIP_TARGET_FLAGS "-march=native")
+endif()
+
+set(HIP_OBJECTS "")
+foreach(src ${HIP_SOURCES})
+  get_filename_component(src_abs ${src} ABSOLUTE)
+  get_filename_component(obj ${src} NAME_WE)
+  set(obj_file ${CMAKE_CURRENT_BINARY_DIR}/${obj}.o)
+
+  add_custom_command(
+    OUTPUT ${obj_file}
+    COMMAND ${HIPCC_EXECUTABLE} ${HIP_OPT_FLAGS} ${HIP_TARGET_FLAGS} -std=c++17
+            -DUSE_PROF_API=1 -D__HIP_PLATFORM_AMD__=1
+            -I${ROCM_PATH}/include -I${ROCM_PATH}/include/hip
+            -I${ROCM_PATH}/include/rocblas -I${ROCM_PATH}/include/rocsolver -I${ROCM_PATH}/include/rocfft
+            -c ${src_abs} -o ${obj_file}
+    DEPENDS ${src_abs}
+    COMMENT "Building HIP object ${obj_file} with hipcc"
+  )
+
+  list(APPEND HIP_OBJECTS ${obj_file})
+endforeach()
+
+# Create a static lib from those objects
+add_library(HipInterface STATIC ${HIP_OBJECTS})
+add_library(VASP::HipInterface ALIAS HipInterface)
+set_target_properties(HipInterface PROPERTIES LINKER_LANGUAGE CXX)
+
+target_link_libraries(HipInterface PUBLIC
+    roc::rocblas
+    roc::rocfft
+    roc::rocsolver
+)
+if(RCCL_LIB)
+  target_link_libraries(HipInterface PUBLIC ${RCCL_LIB})
+else()
+  message(STATUS "RCCL not found — building HipInterface without RCCL")
+endif()
