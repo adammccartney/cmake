@@ -8,3 +8,15 @@
   ```
   . cmake/setup.sh
   ```
+
+* Create a build directory and run cmake:
+  ```
+  mkdir your-build-dir
+  cd your-build-dir
+  cmake ..
+  ```
+
+* And build VASP (in the ``your-build-dir`` directory):
+  ```
+  make -j all
+  ```
