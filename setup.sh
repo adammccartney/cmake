@@ -1,32 +1,86 @@
-HERE=${PWD}
+#!/usr/bin/env bash
+set -euo pipefail
 
-VASPROOT=${PWD}/$1
+# Creates relative CMakeLists.txt symlinks pointing into cmake/CMakeLists/.
 
-cd ${VASPROOT}
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_root.txt CMakeLists.txt
+usage() {
+  cat >&2 <<'EOF'
+usage: cmake/setup.sh [<vasp-root>]
 
-cd ${VASPROOT}/src
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_src.txt CMakeLists.txt
+When <vasp-root> is omitted, the script assumes it lives in <vasp-root>/cmake/
+and must be executed from either:
+  - <vasp-root>
+  - <vasp-root>/cmake (or a subdirectory)
 
-cd ${VASPROOT}/src/fftlib
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_fftlib.txt CMakeLists.txt
+When <vasp-root> is provided, the script may be executed from any directory.
+EOF
+}
 
-cd ${VASPROOT}/src/HIP
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_HIP.txt CMakeLists.txt
+if [[ $# -gt 1 ]]; then
+  usage
+  exit 2
+fi
 
-cd ${VASPROOT}/src/lib
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_lib.txt CMakeLists.txt
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+DEFAULT_VASPROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd -P)"
+PWD_REAL="$(pwd -P)"
 
-cd ${VASPROOT}/src/oneapi
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_oneapi.txt CMakeLists.txt
+if [[ $# -eq 1 ]]; then
+  VASPROOT="$(CDPATH= cd -- "$1" && pwd -P)"
+else
+  VASPROOT="${DEFAULT_VASPROOT}"
+fi
 
-cd ${VASPROOT}/src/parser
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_parser.txt CMakeLists.txt
+is_under_dir() {
+  # $1: parent dir (absolute)
+  # $2: path (absolute)
+  case "$2" in
+    "$1"|"$1"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
-cd ${VASPROOT}/src/vaspml
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_vaspml.txt CMakeLists.txt
+if [[ $# -eq 0 ]]; then
+  # Allow running from:
+  # - the repository root
+  # - anywhere inside the cmake/ submodule directory
+  if [[ "${PWD_REAL}" != "${VASPROOT}" ]] && ! is_under_dir "${SCRIPT_DIR}" "${PWD_REAL}"; then
+    echo "error: run this from either:" >&2
+    echo "       - ${VASPROOT}" >&2
+    echo "       - ${SCRIPT_DIR} (or a subdirectory)" >&2
+    echo "       (current directory: ${PWD_REAL})" >&2
+    echo "hint: or pass an explicit root: cmake/setup.sh ${VASPROOT}" >&2
+    exit 1
+  fi
+fi
 
-cd ${VASPROOT}/testsuite
-ln -fs ${VASPROOT}/cmake/CMakeLists/CMakeLists_testsuite.txt CMakeLists.txt
+if [[ ! -d "${VASPROOT}/cmake/CMakeLists" ]]; then
+  echo "error: not a VASP source tree (missing ${VASPROOT}/cmake/CMakeLists)" >&2
+  exit 1
+fi
 
-cd ${HERE}
+link_cmakelists() {
+  # $1: directory relative to VASPROOT
+  # $2: relative symlink target (relative to the link location)
+  local rel_dir="$1"
+  local rel_target="$2"
+  local dst_dir="${VASPROOT}/${rel_dir}"
+  local dst_link="${dst_dir}/CMakeLists.txt"
+
+  if [[ ! -d "${dst_dir}" ]]; then
+    echo "error: directory not found: ${dst_dir}" >&2
+    exit 1
+  fi
+
+  ln -sfn "${rel_target}" "${dst_link}"
+}
+
+link_cmakelists "."           "cmake/CMakeLists/CMakeLists_root.txt"
+link_cmakelists "src"         "../cmake/CMakeLists/CMakeLists_src.txt"
+link_cmakelists "src/fftlib"  "../../cmake/CMakeLists/CMakeLists_fftlib.txt"
+link_cmakelists "src/HIP"     "../../cmake/CMakeLists/CMakeLists_HIP.txt"
+link_cmakelists "src/lib"     "../../cmake/CMakeLists/CMakeLists_lib.txt"
+link_cmakelists "src/oneapi"  "../../cmake/CMakeLists/CMakeLists_oneapi.txt"
+link_cmakelists "src/parser"  "../../cmake/CMakeLists/CMakeLists_parser.txt"
+link_cmakelists "src/vaspml"  "../../cmake/CMakeLists/CMakeLists_vaspml.txt"
+link_cmakelists "testsuite"   "../cmake/CMakeLists/CMakeLists_testsuite.txt"
