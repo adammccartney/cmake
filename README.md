@@ -1,4 +1,4 @@
-![VASP](vasp-logo.png)
+![VASP](.assets/vasp-logo.png)
 
 This repository contains the CMake build system files for VASP.
 
@@ -52,9 +52,15 @@ Compiler handling is implemented in `cmake/sources_and_flags_options.cmake` via 
 - `Fujitsu` (Fujitsu Fortran compiler)
 - `NFORT` (NEC nfort)
 
+If one of these compilers is not correctly detected please set the environment variable `FC`, `CC`, and `CXX` accordingly.
+
 ## CMake Options (VASP_*)
 
-All options are passed to CMake as `-D<name>=<value>`.
+All options are passed to CMake as `-D<name>=<value>`. These options cover most available pre-compiler options in VASP and will also search for libraries accordingly if needed. Other pre-compiler flags not listed here can of course be passed as well via: `-DVASP_PP_EXTRA=<options>`.
+
+Library and package configuration for options that need extra libraries, e.g. HDF5 or LibXC, are searched for. If they are not found consider setting `<package>_ROOT` before calling cmake.
+
+BLAS and LAPACK are mandatory and are detected via the default cmake packages. Set the environment variable `BLA_VENDOR` to steer the selection. See the [cmake documentation](https://cmake.org/cmake/help/latest/module/FindBLAS.html#) for more details.
 
 ### General build features
 
@@ -64,8 +70,8 @@ All options are passed to CMake as `-D<name>=<value>`.
 
 ### Optimization / CPU tuning
 
-- `-DVASP_OFLAG=<flag>`: override the default optimization flag (e.g. `-O3`, `-Ofast`) (default: empty)
-- `-DVASP_TARGET_CPU=<arch>`: target CPU architecture (e.g. `native`, `skylake`, `zen3`) (default: empty)
+- `-DVASP_OFLAG=<flag>`: override the default optimization flag (e.g. `-O2`, `-Ofast`) (default: according to arch/makefile.include default)
+- `-DVASP_TARGET_CPU=<arch>`: target CPU architecture (e.g. `native`, `skylake`, `zen3`) (default: empty or read from `${VASP_TARGET_CPU}`)
 
 ### MPI / runtime-related toggles
 
@@ -78,37 +84,41 @@ All options are passed to CMake as `-D<name>=<value>`.
 
 - `-DVASP_AVOIDALLOC=ON|OFF`: avoid automatic allocation (default: ON)
 - `-DVASP_SHMEM=ON|OFF`: enable shared memory for reduced memory usage (default: OFF)
-- `-DVASP_SHMEM_BCAST=ON|OFF`: enable shared memory MPI bcast (default: OFF)
-- `-DVASP_SHMEM_RPROJ=ON|OFF`: enable shared memory for PAW projections (default: OFF)
 - `-DVASP_SYSV=ON|OFF`: enable shared-memory for ipcs and System-V (default: OFF)
 
 ### VASP feature switches
 
 - `-DVASP_PLUGINS=ON|OFF`: enable VASP plugin support (default: OFF)
-- `-DVASP_TBDYN=ON|OFF`: enable advanced molecular dynamics (default: ON)
-- `-DVASP_FOCK_DBLBUF=ON|OFF`: enable double buffering for exchange potential (default: ON)
 - `-DVASP_QD_EMULATE=ON|OFF`: use QD library for quadruple precision types (default: OFF)
 - `-DVASP_PROFILING=ON|OFF`: enable profiling (default: OFF)
-- `-DVASP_VASP6=ON|OFF`: enable VASP 6.x features (default: ON)
 
 ### External library support
 
-- `-DVASP_SCALAPACK=ON|OFF`: enable ScaLAPACK (default: ON)
+- `-DVASP_SCALAPACK=ON|OFF`: enable ScaLAPACK, highly recommended (default: ON)
 - `-DVASP_HDF5=ON|OFF`: enable HDF5 support (default: ON)
-- `-DVASP_LIBXC=ON|OFF`: enable Libxc (default: OFF)
+- `-DVASP_LIBXC=ON|OFF`: enable Libxc support (default: OFF)
 - `-DVASP_LIBBEEF=ON|OFF`: enable libbeef (van-der-Waals functionals) (default: OFF)
 - `-DVASP_DFTD4=ON|OFF`: enable DFTD4 (default: OFF)
 - `-DVASP_WANNIER90=ON|OFF`: enable Wannier90 (default: OFF)
 
 ### GPU / offloading
 
+GPU offloading for NVIDIA GPUs is automatically attempted as soon as a nhvpc compiler is detected. By default it will build for GPUs present on the host system. To cross compile for other architectures use `-DVASP_CUDA_ARCH` (see below). If `MKLROOT` is set nvhpc will automatically link these for host side blas/lapack calls.
+
+To enable GPU offloading for Intel or AMD GPUs you have to use either the Intel OneApi ifx compiler for Intel GPUs or crayftn for AMD GPUs and pass `-DVASP_OMP_OFFLOAD=ON`.All other options will be automatically set.
+
+Read the cmake output of the section `GPU support detection` carefully if all options are set correctly.
+
 - `-DVASP_CUDA=ON|OFF`: enable CUDA acceleration (default: OFF)
 - `-DVASP_CUDA_VERSION=<ver>`: CUDA version passed to NVHPC (example: `-DVASP_CUDA_VERSION=12.6`) (default: `Default`)
+- `-DVASP_CUDA_ARCH=<cc-versions list>`: list of nvidia compute capability / architectures. Just pass the numbers. Example `-DVASP_CUDA_ARCH=100` for adding `-gpu=cc100` .
 - `-DVASP_USE_NCCL=ON|OFF`: enable NCCL support (default: ON)
 - `-DVASP_CUSOLVERMP=ON|OFF`: enable cuSOLVERmp/cublasmp (requires ScaLAPACK) (default: ON)
 - `-DVASP_OMP_OFFLOAD=ON|OFF`: enable OpenMP device offloading (default: OFF)
 - `-DVASP_INTEL_MKL=ON|OFF`: enable Intel MKL offloading (default: OFF)
 - `-DVASP_ROCM_HIP=ON|OFF`: enable ROCm/HIP support for offloading (default: OFF)
+
+See also [GPU ports of VASP](http://vasp.at/wiki/Construction:GPU_ports_of_VASP) for more details.
 
 ### Licensing
 
