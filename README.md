@@ -7,10 +7,13 @@ After you downloaded an official VASP source tarball you can clone this reposito
 Branching follows VASP major releases: for each major release there is a matching
 branch named `6.6.x`, etc.
 
-* Clone the repository into the root directory of your VASP distribution:
+Build steps using cmake:
+
+* Get the VASP version from the portal and untar it
+* Clone the repository, and directly specify the VASP version, into the root directory of your VASP distribution:
   ```
   cd /your/vasp/directory
-  git clone git@github.com:vasp-dev/cmake.git cmake
+  git clone -b 6.6.x git@github.com:vasp-dev/cmake.git cmake
   ```
 
 * Run the setup script (creating `CMakeLists.txt` symlinks in the VASP tree):
@@ -118,7 +121,7 @@ Read the cmake output of the section `GPU support detection` carefully if all op
 - `-DVASP_INTEL_MKL=ON|OFF`: enable Intel MKL offloading (default: OFF)
 - `-DVASP_ROCM_HIP=ON|OFF`: enable ROCm/HIP support for offloading (default: OFF)
 
-See also [GPU ports of VASP](http://vasp.at/wiki/Construction:GPU_ports_of_VASP) for more details.
+See also [GPU ports of VASP](http://vasp.at/wiki/GPU_ports_of_VASP) for more details.
 
 ### Licensing
 
