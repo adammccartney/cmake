@@ -103,6 +103,7 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_LIBBEEF=ON|OFF`: enable libbeef (van-der-Waals functionals) (default: OFF)
 - `-DVASP_DFTD4=ON|OFF`: enable DFTD4 (default: OFF)
 - `-DVASP_WANNIER90=ON|OFF`: enable Wannier90 (default: OFF)
+- `-DVASP_USE_NVPL=AUTO|ON|OFF`: Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK  (default:AUTO)
 
 ### GPU / offloading
 

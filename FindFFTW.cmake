@@ -23,6 +23,26 @@ if(NOT TARGET BLAS::BLAS)
     find_package(BLAS MODULE QUIET)
 endif()
 
+# NVIDIA NVPL provides an FFTW-compatible interface via libnvpl_fftw.so.
+# NVPL is typically shipped with the NVIDIA HPC SDK under:
+#   <NVHPC{,_ROOT}>/math_libs/nvpl
+# or installed system-wide, e.g.:
+#   /opt/nvidia/hpc_sdk/Linux_*/<version>/math_libs/nvpl
+set(_VASP_NVPL_PATHS)
+if(DEFINED ENV{NVPL_ROOT} AND NOT "$ENV{NVPL_ROOT}" STREQUAL "")
+    list(APPEND _VASP_NVPL_PATHS "$ENV{NVPL_ROOT}")
+endif()
+foreach(_var NVHPC NVHPC_ROOT)
+    if(DEFINED ENV{${_var}} AND NOT "$ENV{${_var}}" STREQUAL "")
+        list(APPEND _VASP_NVPL_PATHS "$ENV{${_var}}/math_libs/nvpl")
+    endif()
+endforeach()
+if(EXISTS "/opt/nvidia/hpc_sdk")
+    file(GLOB _VASP_NVPL_GLOB LIST_DIRECTORIES true "/opt/nvidia/hpc_sdk/Linux_*/*/math_libs/nvpl")
+    list(APPEND _VASP_NVPL_PATHS ${_VASP_NVPL_GLOB})
+endif()
+list(REMOVE_DUPLICATES _VASP_NVPL_PATHS)
+
 macro(find_ffftw_component name lib_name lib_symbol)
     # set paths to look for library
     if(DEFINED ENV{FFTW_${name}_ROOT} AND NOT "$ENV{FFTW_${name}_ROOT}" STREQUAL "")
@@ -61,6 +81,11 @@ macro(find_ffftw_component name lib_name lib_symbol)
         list(APPEND _FFTW_${name}_PATHS $ENV{MKLROOT})
     endif()
 
+    # also add NVPL paths (FFTW-compatible interface)
+    if(_VASP_NVPL_PATHS)
+        list(APPEND _FFTW_${name}_PATHS ${_VASP_NVPL_PATHS})
+    endif()
+
     if(_FFTW_${name}_PATHS)
         # disable default paths if ROOT is set
         set(_FFTW_${name}_DEFAULT_PATH_SWITCH NO_DEFAULT_PATH)
@@ -84,10 +109,14 @@ macro(find_ffftw_component name lib_name lib_symbol)
         )
     endif()
 
+    # NVPL FFT ships FFTW headers under include/nvpl_fftw (fftw3.h), and also
+    # provides nvpl_fftw.h. Support both layouts.
     find_path(FFTW_${name}_INCLUDE_DIRS
-        NAMES "fftw3.h"
+        NAMES "fftw3.h" "nvpl_fftw.h"
         HINTS ${_FFTW_${name}_PATHS} ${_FFTW_${name}_INCLUDE_PATHS}
-        PATH_SUFFIXES "include_mp" "include" "include_mp/fftw" "include/fftw"
+        PATH_SUFFIXES
+          "include_mp" "include" "include_mp/fftw" "include/fftw"
+          "include/nvpl_fftw" "include/nvpl_fftw/fftw"
         ${_FFTW_${name}_DEFAULT_PATH_SWITCH}
     )
 
@@ -127,18 +156,20 @@ endif()
 
 set(FFTW_REQUIRED_VARS)
 
-find_ffftw_component(SERIAL fftw3 fftw_plan_dft)
+find_ffftw_component(SERIAL "nvpl_fftw;fftw3" fftw_plan_dft)
 list(APPEND FFTW_REQUIRED_VARS FFTW_SERIAL_INCLUDE_DIRS FFTW_SERIAL_LIBRARIES)
 
 foreach(comp IN LISTS FFTW_COMP)
     if(${comp} STREQUAL "OMP")
-        find_ffftw_component(OMP fftw3_omp fftw_init_threads)
+        # NVPL uses a single library (libnvpl_fftw.so) for both serial and threaded execution.
+        find_ffftw_component(OMP "nvpl_fftw;fftw3_omp" fftw_init_threads)
         if(TARGET FFTW::FFTW_OMP AND TARGET FFTW::FFTW_SERIAL)
             target_link_libraries(FFTW::FFTW_OMP INTERFACE FFTW::FFTW_SERIAL)
         endif()
         list(APPEND FFTW_REQUIRED_VARS FFTW_OMP_INCLUDE_DIRS FFTW_OMP_LIBRARIES)
     elseif(${comp} STREQUAL "THREADS")
-        find_ffftw_component(THREADS fftw3_threads fftw_init_threads)
+        # NVPL uses a single library (libnvpl_fftw.so) for both serial and threaded execution.
+        find_ffftw_component(THREADS "nvpl_fftw;fftw3_threads" fftw_init_threads)
         list(APPEND FFTW_REQUIRED_VARS FFTW_THREADS_INCLUDE_DIRS FFTW_THREADS_LIBRARIES)
         if(TARGET FFTW::FFTW_THREADS AND TARGET FFTW::FFTW_SERIAL)
             target_link_libraries(FFTW::FFTW_THREADS INTERFACE FFTW::FFTW_SERIAL)

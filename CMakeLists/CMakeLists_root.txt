@@ -114,6 +114,10 @@ option(VASP_DFTD4 "Enable DFTD4 library" OFF)
 option(VASP_WANNIER90 "Enable Wannier90 library" OFF)
 option(VASP_HDF5 "Enable HDF5 library support" ON)
 option(VASP_LIBXC "Enable Libxc library" OFF)
+# NVIDIA NVPL (aarch64 CPU math libraries)
+# Values: AUTO (use if detected on aarch64), ON (require), OFF (disable)
+set(VASP_USE_NVPL "AUTO" CACHE STRING "Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK (AUTO|ON|OFF)")
+set_property(CACHE VASP_USE_NVPL PROPERTY STRINGS AUTO ON OFF)
 # CUDA / GPU options
 option(VASP_CUDA "Enable cuda accelaration" OFF)
 set(VASP_CUDA_VERSION "Default" CACHE STRING "Set the CUDA version passed on to the NVHPC compiler. Example: -DVASP_CUDA_VERSION=12.6")
@@ -213,8 +217,12 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "NFORT")
   set(BLAS_LIBRARIES "-lblas_sequential -lcblas" CACHE STRING "Manually set BLAS libraries" FORCE)
 endif()
 
+set(VASP_NVPL_MATH FALSE)
+include(cmake/vasp_nvpl_math.cmake)
+vasp_try_enable_nvpl_math(VASP_NVPL_MATH)
+
 # for NVHPC compiler with MKL, use -Mmkl linker flag
-if(CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
+if(NOT VASP_NVPL_MATH AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
   if(DEFINED ENV{MKLROOT} OR DEFINED ENV{ONEAPI_ROOT})
     if(VASP_OPENMP)
       message(STATUS "NVHPC compiler detected with MKL environment, using -Mmkl (threaded)")
@@ -237,7 +245,7 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
   endif()
 endif()
 
-if(NOT VASP_NVHPC_MKL)
+if(NOT VASP_NVPL_MATH AND NOT VASP_NVHPC_MKL)
   find_package(BLAS MODULE REQUIRED)
   list(APPEND VASP_EXTERNAL_LIBS BLAS::BLAS)
   get_target_property(lib_path BLAS::BLAS IMPORTED_LOCATION)
@@ -369,11 +377,49 @@ if(VASP_CUDA)
   endif()
   message(STATUS "CUDA compile flags: ${VASP_GPU_FLAG}")
 
+  # NVHPC installations use different environment variables depending on module
+  # setup (e.g., NVHPC vs NVHPC_ROOT) and may place libraries in lib/lib64
+  # subfolders. Provide a broader set of hints for find_library().
+  set(_VASP_NVHPC_ROOTS)
+  foreach(_var NVHPC NVHPC_ROOT)
+    if(DEFINED ENV{${_var}} AND NOT "$ENV{${_var}}" STREQUAL "")
+      list(APPEND _VASP_NVHPC_ROOTS "$ENV{${_var}}")
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES _VASP_NVHPC_ROOTS)
+
+  set(_VASP_NVHPC_MATH_LIB_DIRS)
+  set(_VASP_NVHPC_NCCL_LIB_DIRS)
+  set(_VASP_NVHPC_NVSHMEM_LIB_DIRS)
+  foreach(_root IN LISTS _VASP_NVHPC_ROOTS)
+    list(APPEND _VASP_NVHPC_MATH_LIB_DIRS
+      "${_root}/math_libs"
+      "${_root}/math_libs/lib"
+      "${_root}/math_libs/lib64"
+    )
+    list(APPEND _VASP_NVHPC_NCCL_LIB_DIRS
+      "${_root}/comm_libs/nccl"
+      "${_root}/comm_libs/nccl/lib"
+      "${_root}/comm_libs/nccl/lib64"
+    )
+    list(APPEND _VASP_NVHPC_NVSHMEM_LIB_DIRS
+      "${_root}"
+      "${_root}/lib"
+      "${_root}/lib64"
+      "${_root}/comm_libs/nvshmem"
+      "${_root}/comm_libs/nvshmem/lib"
+      "${_root}/comm_libs/nvshmem/lib64"
+    )
+  endforeach()
+  list(REMOVE_DUPLICATES _VASP_NVHPC_MATH_LIB_DIRS)
+  list(REMOVE_DUPLICATES _VASP_NVHPC_NCCL_LIB_DIRS)
+  list(REMOVE_DUPLICATES _VASP_NVHPC_NVSHMEM_LIB_DIRS)
+
   set(_CUDA_LIB_LIST "cublas,cusolver,cufft,nccl")
   # find the library to be able to add its path to runpath / rpath in the binary
   find_library(CUBLAS_LIBRARY
     NAMES cublas libcublas.so
-    HINTS "$ENV{NVHPC}/math_libs"
+    HINTS ${_VASP_NVHPC_MATH_LIB_DIRS}
   )
   if(CUBLAS_LIBRARY)
     get_filename_component(lib_dir ${CUBLAS_LIBRARY} DIRECTORY)
@@ -382,7 +428,7 @@ if(VASP_CUDA)
 
   find_library(NCCL_LIBRARY
     NAMES nncl libnccl.so libnccl.so.2
-    HINTS "$ENV{NVHPC}/comm_libs/nccl"
+    HINTS ${_VASP_NVHPC_NCCL_LIB_DIRS}
   )
   if(NCCL_LIBRARY)
     get_filename_component(lib_dir ${NCCL_LIBRARY} DIRECTORY)
@@ -391,7 +437,7 @@ if(VASP_CUDA)
 
   find_library(NVSHMEM_LIBRARY
     NAMES nvshmem_host libnvshmem_host.so libnvshmem_host.so.3
-    HINTS "$ENV{NVHPC}"
+    HINTS ${_VASP_NVHPC_NVSHMEM_LIB_DIRS}
   )
   if(NVSHMEM_LIBRARY)
     get_filename_component(lib_dir ${NVSHMEM_LIBRARY} DIRECTORY)
@@ -408,7 +454,7 @@ if(VASP_CUDA)
 	# find the library to be able to add its path to runpath / rpath in the binary
     find_library(CUBLASMP_LIBRARY
       NAMES cublasmp libcublasmp.so libcublasMp.so libcublasmp.so.0
-      HINTS "$ENV{NVHPC}/math_libs"
+      HINTS ${_VASP_NVHPC_MATH_LIB_DIRS}
     )
 
     if(CUBLASMP_LIBRARY)
