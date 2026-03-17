@@ -114,6 +114,9 @@ option(VASP_DFTD4 "Enable DFTD4 library" OFF)
 option(VASP_WANNIER90 "Enable Wannier90 library" OFF)
 option(VASP_HDF5 "Enable HDF5 library support" ON)
 option(VASP_LIBXC "Enable Libxc library" OFF)
+# vecLibFort: Fortran-friendly wrapper around Apple's vecLib (Accelerate) for macOS
+option(VASP_VECLIBFORT "Use vecLibFort for BLAS/LAPACK on macOS" OFF)
+set(VASP_VECLIBFORT_ROOT "/opt/homebrew" CACHE STRING "Root path of the vecLibFort installation (e.g. /opt/homebrew or a Cellar path)")
 # NVIDIA NVPL (aarch64 CPU math libraries)
 # Values: AUTO (use if detected on aarch64), ON (require), OFF (disable)
 set(VASP_USE_NVPL "AUTO" CACHE STRING "Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK (AUTO|ON|OFF)")
@@ -245,7 +248,24 @@ if(NOT VASP_NVPL_MATH AND CMAKE_Fortran_COMPILER_ID STREQUAL "NVHPC")
   endif()
 endif()
 
-if(NOT VASP_NVPL_MATH AND NOT VASP_NVHPC_MKL)
+if(VASP_VECLIBFORT)
+  find_library(VECLIBFORT_LIBRARY
+    NAMES vecLibFort libvecLibFort
+    HINTS "${VASP_VECLIBFORT_ROOT}/lib"
+          "/opt/homebrew/lib"
+          "/usr/local/lib"
+          "/opt/local/lib"
+    REQUIRED
+  )
+  message(STATUS "Found vecLibFort: ${VECLIBFORT_LIBRARY}")
+  add_library(BLAS::BLAS INTERFACE IMPORTED)
+  set_property(TARGET BLAS::BLAS PROPERTY INTERFACE_LINK_LIBRARIES "${VECLIBFORT_LIBRARY}")
+  add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+  set_property(TARGET LAPACK::LAPACK PROPERTY INTERFACE_LINK_LIBRARIES "${VECLIBFORT_LIBRARY}")
+  list(APPEND VASP_EXTERNAL_LIBS BLAS::BLAS LAPACK::LAPACK)
+  get_filename_component(_veclibfort_dir "${VECLIBFORT_LIBRARY}" DIRECTORY)
+  list(APPEND VASP_EXTERNAL_LIB_DIRS "${_veclibfort_dir}")
+elseif(NOT VASP_NVPL_MATH AND NOT VASP_NVHPC_MKL)
   find_package(BLAS MODULE REQUIRED)
   list(APPEND VASP_EXTERNAL_LIBS BLAS::BLAS)
   get_target_property(lib_path BLAS::BLAS IMPORTED_LOCATION)
