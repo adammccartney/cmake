@@ -104,6 +104,7 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_DFTD4=ON|OFF`: enable DFTD4 (default: OFF)
 - `-DVASP_WANNIER90=ON|OFF`: enable Wannier90 (default: OFF)
 - `-DVASP_USE_NVPL=AUTO|ON|OFF`: Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK  (default:AUTO)
+- `-DVASP_VECLIBFORT=ON|OFF`: Use VecLibFort for BLAS/LAPACK on Mac OS to use the Accelerate framework (default:OFF)
 
 ### GPU / offloading
 
