@@ -132,7 +132,6 @@ option(VASP_OMP_OFFLOAD "Enable OMP device offloading" OFF)
 option(VASP_INTEL_MKL "Enable Intel MKL offloading" OFF)
 set(CMAKE_INTELGPU_ARCHITECTURES "default" CACHE STRING "Intel GPU architectures list, example: \"spir64_gen\". Default is \"spir64_gen\"")
 set(CMAKE_INTELGPU_DEVICE "pvc" CACHE STRING "Intel GPU device for AoT compilation, default is \"pvc\"")
-option(VASP_OMP_NOFEXCGKERNEL "Disable fexc kernel offloading" OFF)
 option(VASP_ROCM_HIP "Enable ROCm / HIP support for offloading" OFF)
 
 # licensing options
@@ -661,7 +660,6 @@ set(VASP_DEFINITIONS
   $<$<BOOL:${VASP_CUSOLVERMP}>:CUBLASMP>
   # OMP offloading flags
   $<$<BOOL:${VASP_OMP_OFFLOAD}>:OMP_OFFLOAD>
-  $<$<BOOL:${VASP_OMP_NOFEXCGKERNEL}>:OMP_NOFEXCGKERNEL>
   # intel specific
   $<$<BOOL:${VASP_INTEL_MKL}>:INTELMKL>
   # cray specific
