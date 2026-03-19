@@ -120,17 +120,6 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(parser)
 
-# for Intel OpenMP offloading we need to compile this helper libs
-if(VASP_OMP_OFFLOAD AND VASP_INTEL_MKL)
-  add_subdirectory(oneapi)
-  list(APPEND VASP_EXTERNAL_LIBS VASP::ZeInterface)
-endif()
-
-if(VASP_OMP_OFFLOAD AND VASP_ROCM_HIP)
-  add_subdirectory(HIP)
-  list(APPEND VASP_EXTERNAL_LIBS VASP::HipInterface)
-endif()
-
 # here the add_executables are generated via the custom function
 vasp_create_executable(vasp_std "${VASP_SOURCES}")
 vasp_create_executable(vasp_gam "${VASP_SOURCES}")

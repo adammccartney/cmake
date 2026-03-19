@@ -127,13 +127,6 @@ option(VASP_CUDA "Enable cuda accelaration" OFF)
 set(VASP_CUDA_VERSION "Default" CACHE STRING "Set the CUDA version passed on to the NVHPC compiler. Example: -DVASP_CUDA_VERSION=12.6")
 option(VASP_USE_NCCL "Enable NCCL support" ON)
 option(VASP_CUSOLVERMP "Enable usage of cuSOLVERmp and cublasmp. Can only be used if build with ScaLAPACK" ON)
-# OpenMP offloading options
-option(VASP_OMP_OFFLOAD "Enable OMP device offloading" OFF)
-option(VASP_INTEL_MKL "Enable Intel MKL offloading" OFF)
-set(CMAKE_INTELGPU_ARCHITECTURES "default" CACHE STRING "Intel GPU architectures list, example: \"spir64_gen\". Default is \"spir64_gen\"")
-set(CMAKE_INTELGPU_DEVICE "pvc" CACHE STRING "Intel GPU device for AoT compilation, default is \"pvc\"")
-option(VASP_OMP_NOFEXCGKERNEL "Disable fexc kernel offloading" OFF)
-option(VASP_ROCM_HIP "Enable ROCm / HIP support for offloading" OFF)
 
 # licensing options
 set(VASP_LICENSE "" CACHE STRING "VASP license key")
@@ -166,11 +159,9 @@ endforeach()
 # mandatory external libraries
 #-----------------------------
 
-if(VASP_OPENMP OR VASP_OMP_OFFLOAD)
+if(VASP_OPENMP)
   find_package(OpenMP MODULE COMPONENTS Fortran CXX REQUIRED)
   list(APPEND VASP_EXTERNAL_LIBS OpenMP::OpenMP_Fortran OpenMP::OpenMP_CXX)
-  # if triggered by OMP offloading activate OpenMP generally
-  set(VASP_OPENMP ON)
 endif()
 
 message(STATUS "-------- MPI detection ------------------")
@@ -214,12 +205,6 @@ endif()
 
 message(STATUS "-------- Lapack detection ---------------")
 set(BLA_SIZEOF_INTEGER 4) # only look for 32-bit BLAS / LAPACK
-# if using Intel MKL with OMP offloading we need to link against the threaded 64bit interface
-if(VASP_OMP_OFFLOAD)
-  if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel" OR CMAKE_Fortran_COMPILER_ID MATCHES "IntelLLVM")
-    set(BLA_VENDOR "Intel10_64lp")
-  endif()
-endif()
 # for NEC we specify the linking library manually
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "NFORT")
   set(BLAS_LIBRARIES "-lblas_sequential -lcblas" CACHE STRING "Manually set BLAS libraries" FORCE)
@@ -351,20 +336,14 @@ endif()
 # Find CUDA
 message(STATUS "-------- GPU support detection ----------")
 
-if(VASP_CUDA AND VASP_OMP_OFFLOAD)
-  message(FATAL_ERROR "VASP_CUDA and VASP_OMP_OFFLOAD are mutually exclusive. Please select only one.")
-endif()
-
-if(NOT VASP_OMP_OFFLOAD)
-  include(CheckLanguage)
-  check_language(CUDA)
-  if(CMAKE_CUDA_COMPILER)
-    enable_language(CUDA)
-    set(VASP_CUDA ON)
-  else()
-    set(VASP_USE_NCCL OFF)
-    message(STATUS "No CUDA capable compiler found - OpenACC support disabled.")
-  endif()
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+  enable_language(CUDA)
+  set(VASP_CUDA ON)
+else()
+  set(VASP_USE_NCCL OFF)
+  message(STATUS "No CUDA capable compiler found - OpenACC support disabled.")
 endif()
 
 if(VASP_CUDA)
@@ -508,97 +487,6 @@ if(VASP_QD_EMULATE)
   set(VASP_QD_EMULATE ON)
 endif()
 
-if(VASP_OMP_OFFLOAD)
-  if(CMAKE_Fortran_COMPILER_ID STREQUAL "IntelLLVM")
-    message(STATUS "Enabling OpenMP offloading with IntelLLVM compiler")
-    execute_process(COMMAND ifx --version
-                    OUTPUT_VARIABLE IFX_VERSION_RAW
-                    OUTPUT_STRIP_TRAILING_WHITESPACE
-                    )
-    # Grab the line with "ifx" in it
-    string(REGEX MATCH "ifx.*" IFX_LINE "${IFX_VERSION_RAW}")
-    # Extract the 4th whitespace-separated field (the build date)
-    string(REGEX REPLACE "^[^ ]+ [^ ]+ [^ ]+ ([0-9]+).*" "\\1" IFX_BUILD_DATE "${IFX_LINE}")
-    # select target arch, for future this should be made configurable
-    if(${CMAKE_INTELGPU_ARCHITECTURES} STREQUAL "default")
-      message(STATUS "setting default Intel GPU architecture to spir64_gen")
-      set(VASP_GPU_FLAG "spir64_gen")
-      message(STATUS "overwrite this by calling cmake with -DCMAKE_INTELGPU_ARCHITECTURES=XX")
-    endif()
-    set(VASP_OFFLOAD_FLAGS -fopenmp-targets=${VASP_GPU_FLAG} -Xs "-device ${CMAKE_INTELGPU_DEVICE}")
-    list(APPEND VASP_OFFLOAD_FLAGS -switch no-use-host-usm-for-implicit-reduction-map)
-    list(APPEND VASP_FORTRAN_LINKER_FLAGS -fopenmp-targets=${VASP_GPU_FLAG} -Xs "-device ${CMAKE_INTELGPU_DEVICE}" -fopenmp-device-code-split=per_kernel -fopenmp-max-parallel-link-jobs=4)
-    find_library(MKL_SYCL_LIB mkl_sycl)
-    if(MKL_SYCL_LIB)
-      message(STATUS "Found Intel MKL SYCL library: ${MKL_SYCL_LIB}")
-      list(APPEND VASP_OFFLOAD_LIBS ${MKL_SYCL_LIB})
-    else()
-      message(FATAL_ERROR "Intel MKL SYCL library (mkl_sycl) not found")
-    endif()
-    # and level zero
-    find_library(LEVELZERO_LIB ze_loader)
-    if(LEVELZERO_LIB)
-      message(STATUS "Found Level Zero loader: ${LEVELZERO_LIB}")
-      list(APPEND VASP_OFFLOAD_LIBS ${LEVELZERO_LIB})
-    else()
-      message(FATAL_ERROR "Level Zero loader (ze_loader) not found")
-    endif()
-    # list(APPEND VASP_EXTERNAL_LIBS "-Loneapi -lmkl_sycl -lze_loader")
-    set(VASP_INTEL_MKL ON)
-    set(VASP_USE_NCCL OFF)
-  elseif(CMAKE_Fortran_COMPILER_ID STREQUAL "Cray")
-    message(STATUS "Enabling OpenMP offloading with Cray compiler")
-    string(REGEX MATCH "^[0-9]+" FTN_MAJOR_VERSION "${CMAKE_Fortran_COMPILER_VERSION}")
-    message(STATUS "Fortran major version: ${FTN_MAJOR_VERSION}")
-    set(VASP_ROCM_HIP ON)
-    else()
-      message(FATAL_ERROR "OpenMP offloading only supported with GNU and IntelLLVM compilers.")
-      set(VASP_USE_NCCL OFF)
-  endif()
-  if(VASP_LIBXC)
-    message(STATUS "Disabling LibXC support as it is incompatible with OMP GPU port")
-    set(VASP_LIBXC OFF)
-  endif()
-endif()
-
-# separtately handle ROCm / HIP support to allow for other compilers
-if(VASP_ROCM_HIP)
-  message(STATUS "Enabling ROCm / HIP support for offloading")
-  # Make sure CMake can find ROCm packages
-  if(NOT DEFINED ROCM_PATH)
-      set(ROCM_PATH $ENV{ROCM_PATH})
-  endif()
-  list(APPEND CMAKE_PREFIX_PATH "${ROCM_PATH}")
-
-  # HIP support
-  find_library(HIP_LIB amdhip64 HINTS ${ROCM_PATH}/lib)
-  if(HIP_LIB)
-    message(STATUS "Found HIP library: ${HIP_LIB}")
-    list (APPEND VASP_OFFLOAD_LIBS ${HIP_LIB})
-  else()
-    message(FATAL_ERROR "HIP library (amdhip64) not found")
-  endif()
-  # ROCm libraries
-  find_package(rocblas REQUIRED)
-  find_package(rocfft REQUIRED)
-  find_package(rocsolver REQUIRED)
-  list(APPEND VASP_OFFLOAD_LIBS roc::rocblas roc::rocfft roc::rocsolver)
-  message(STATUS "Found rocBLAS library: ${rocblas_VERSION}")
-  message(STATUS "Found rocFFT library: ${rocfft_VERSION}")
-  message(STATUS "Found rocSOLVER library: ${rocsolver_VERSION}")
-  # RCCL / NCCL support
-  if(VASP_USE_NCCL)
-    find_library(RCCL_LIB rccl HINTS ${ROCM_PATH}/lib)
-    if(RCCL_LIB)
-      message(STATUS "Found RCCL library: ${RCCL_LIB}")
-      list(APPEND VASP_OFFLOAD_LIBS ${RCCL_LIB})
-    else()
-      message(STATUS "RCCL not found - RCCL support disabled.")
-      set(VASP_CRAY_NCCL OFF)
-    endif()
-  endif()
-endif()
-
 # LibXC support has to be here to avoid CUDA / OpenACC conflicts
 if(VASP_LIBXC)
   find_package(LibXC MODULE REQUIRED)
@@ -659,22 +547,7 @@ set(VASP_DEFINITIONS
   $<$<BOOL:${VASP_CUDA}>:NVCUDA>
   $<$<BOOL:${VASP_CUSOLVERMP}>:CUSOLVERMP>
   $<$<BOOL:${VASP_CUSOLVERMP}>:CUBLASMP>
-  # OMP offloading flags
-  $<$<BOOL:${VASP_OMP_OFFLOAD}>:OMP_OFFLOAD>
-  $<$<BOOL:${VASP_OMP_NOFEXCGKERNEL}>:OMP_NOFEXCGKERNEL>
-  # intel specific
-  $<$<BOOL:${VASP_INTEL_MKL}>:INTELMKL>
-  # cray specific
-  $<$<BOOL:${VASP_ROCM_HIP}>:CRAYHIP>
 )
-
-if(IFX_BUILD_DATE)
-  list(APPEND VASP_DEFINITIONS __INTEL_COMPILER_BUILD_DATE=${IFX_BUILD_DATE})
-endif()
-
-if(FTN_MAJOR_VERSION)
-  list(APPEND VASP_DEFINITIONS __DCRAYFTN_VERSION=${FTN_MAJOR_VERSION})
-endif()
 
 # add additional preprocessor flags passed via VASP_PP_EXTRA
 if(VASP_PP_EXTRA AND NOT VASP_PP_EXTRA STREQUAL "")

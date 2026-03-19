@@ -5,7 +5,7 @@ This repository contains the CMake build system files for VASP.
 After you downloaded an official VASP source tarball you can clone this repository and follow the steps outlined below to use cmake to build VASP.
 
 Branching follows VASP major releases: for each major release there is a matching
-branch named `6.6.x`, etc.
+branch named `6.5.x`, `6.6.x`, etc.
 
 Build steps using cmake:
 
@@ -13,7 +13,7 @@ Build steps using cmake:
 * Clone the repository, and directly specify the VASP version, into the root directory of your VASP distribution:
   ```
   cd /your/vasp/directory
-  git clone -b 6.6.x git@github.com:vasp-dev/cmake.git cmake
+  git clone -b 6.5.x git@github.com:vasp-dev/cmake.git cmake
   ```
 
 * Run the setup script (creating `CMakeLists.txt` symlinks in the VASP tree):
@@ -48,10 +48,10 @@ Compiler handling is implemented in `cmake/sources_and_flags_options.cmake` via 
 `CMAKE_Fortran_COMPILER_ID`. The following Fortran compiler IDs are explicitly handled:
 
 - `GNU` (gfortran)
-- `Intel` / `IntelLLVM` (ifort / ifx) with GPU support via Inel OneApi for Intel GPUs
+- `Intel` / `IntelLLVM` (ifort / ifx)
 - `NVHPC` (nvfortran) with GPU support via OpenACC
 - `Flang` (LLVM flang)
-- `Cray` (crayftn) with GPU support via ROCm for AMD GPUs
+- `Cray` (crayftn)
 - `Fujitsu` (Fujitsu Fortran compiler)
 - `NFORT` (NEC nfort)
 
@@ -107,22 +107,17 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_USE_NVPL=AUTO|ON|OFF`: Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK  (default:AUTO)
 - `-DVASP_VECLIBFORT=ON|OFF`: Use VecLibFort for BLAS/LAPACK on Mac OS to use the Accelerate framework (default:OFF)
 
-### GPU / offloading
+### GPU support (NVIDIA OpenACC)
 
-GPU offloading for NVIDIA GPUs is automatically attempted as soon as a nhvpc compiler is detected. By default it will build for GPUs present on the host system. To cross compile for other architectures use `-DVASP_CUDA_ARCH` (see below). If `MKLROOT` is set nvhpc will automatically link these for host side blas/lapack calls.
-
-To enable GPU offloading for Intel or AMD GPUs you have to use either the Intel OneApi ifx compiler for Intel GPUs or crayftn for AMD GPUs and pass `-DVASP_OMP_OFFLOAD=ON`.All other options will be automatically set.
+GPU offloading for NVIDIA GPUs is automatically attempted as soon as a nvhpc compiler is detected. By default it will build for GPUs present on the host system. To cross compile for other architectures use `-DCMAKE_CUDA_ARCHITECTURES` (see below). If `MKLROOT` is set nvhpc will automatically link these for host side blas/lapack calls.
 
 Read the cmake output of the section `GPU support detection` carefully if all options are set correctly.
 
 - `-DVASP_CUDA=ON|OFF`: enable CUDA acceleration (default: OFF)
 - `-DVASP_CUDA_VERSION=<ver>`: CUDA version passed to NVHPC (example: `-DVASP_CUDA_VERSION=12.6`) (default: `Default`)
-- `-DVASP_CUDA_ARCH=<cc-versions list>`: list of nvidia compute capability / architectures. Just pass the numbers. Example `-DVASP_CUDA_ARCH=100` for adding `-gpu=cc100` .
+- `-DCMAKE_CUDA_ARCHITECTURES=<cc-versions list>`: list of NVIDIA compute capabilities. Just pass the numbers. Example `-DCMAKE_CUDA_ARCHITECTURES=80` for adding `-gpu=cc80`. Use `native` for automatic detection (default: `native`).
 - `-DVASP_USE_NCCL=ON|OFF`: enable NCCL support (default: ON)
 - `-DVASP_CUSOLVERMP=ON|OFF`: enable cuSOLVERmp/cublasmp (requires ScaLAPACK) (default: ON)
-- `-DVASP_OMP_OFFLOAD=ON|OFF`: enable OpenMP device offloading (default: OFF)
-- `-DVASP_INTEL_MKL=ON|OFF`: enable Intel MKL offloading (default: OFF)
-- `-DVASP_ROCM_HIP=ON|OFF`: enable ROCm/HIP support for offloading (default: OFF)
 
 See also [GPU ports of VASP](http://vasp.at/wiki/GPU_ports_of_VASP) for more details.
 
