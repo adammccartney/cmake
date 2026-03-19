@@ -26,6 +26,21 @@ target_include_directories(vaspml
 )
 target_link_libraries(vaspml PUBLIC MPI::MPI_CXX BLAS::BLAS)
 
+# std::filesystem lives in a separate library (stdc++fs) on older toolchains (GCC < 9).
+# NVHPC and other compilers may use such a toolchain as their host C++ standard library.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_STANDARD 17)
+check_cxx_source_compiles("
+    #include <filesystem>
+    int main() { return std::filesystem::exists(\"/tmp\") ? 0 : 1; }
+" VASPML_STDFS_LINKS)
+if(NOT VASPML_STDFS_LINKS)
+    if(NOT VASPML_MESSAGE_SHOWN)
+        message(STATUS "VASPml: linking stdc++fs for std::filesystem support")
+    endif()
+    target_link_libraries(vaspml PUBLIC stdc++fs)
+endif()
+
 # Auto-detect whether MKL CBLAS headers are needed.
 # Intel compilers define VASPML_USE_MKL themselves via __INTEL_COMPILER/__INTEL_LLVM_COMPILER
 # in Linalg.hpp, so no flag is needed there. For non-Intel compilers building against MKL
@@ -42,7 +57,9 @@ if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Intel|IntelLLVM")
         set(_vaspml_mkl TRUE)
     endif()
     if(_vaspml_mkl)
-        message(STATUS "VASPml: non-Intel compiler with MKL detected, enabling VASPML_USE_MKL")
+        if(NOT VASPML_MESSAGE_SHOWN)
+            message(STATUS "VASPml: non-Intel compiler with MKL detected, enabling VASPML_USE_MKL")
+        endif()
         target_compile_definitions(vaspml PUBLIC VASPML_USE_MKL)
     endif()
 endif()
@@ -61,8 +78,12 @@ find_path(CBLAS_INCLUDE_DIR
 if(CBLAS_INCLUDE_DIR)
     target_include_directories(vaspml PRIVATE ${CBLAS_INCLUDE_DIR})
 else()
-    message(WARNING "VASPml: CBLAS include directory not found. Set MKLROOT, OPENBLAS_ROOT, or BLAS_ROOT.")
+    if(NOT VASPML_MESSAGE_SHOWN)
+        message(WARNING "VASPml: CBLAS include directory not found. Set MKLROOT, OPENBLAS_ROOT, or BLAS_ROOT.")
+    endif()
 endif()
+
+set(VASPML_MESSAGE_SHOWN TRUE CACHE INTERNAL "VASPml messages shown flag")
 
 install(TARGETS vaspml
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
