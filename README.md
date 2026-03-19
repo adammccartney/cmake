@@ -92,6 +92,7 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 ### VASP feature switches
 
 - `-DVASP_PLUGINS=ON|OFF`: enable VASP plugin support (default: OFF)
+- `-DVASP_VASPML=ON|OFF`: enable VASPml machine learning library (experimental). Builds `libvaspml`, links it into the VASP executables, and compiles standalone VASPml tools. Requires MPI CXX and a CBLAS provider (OpenBLAS, MKL, etc.). When using MKL with a non-Intel compiler, `VASPML_USE_MKL` is set automatically. (default: OFF)
 - `-DVASP_QD_EMULATE=ON|OFF`: use QD library for quadruple precision types (default: OFF)
 - `-DVASP_PROFILING=ON|OFF`: enable profiling (default: OFF)
 

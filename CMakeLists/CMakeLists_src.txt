@@ -136,6 +136,13 @@ vasp_create_executable(vasp_std "${VASP_SOURCES}")
 vasp_create_executable(vasp_gam "${VASP_SOURCES}")
 vasp_create_executable(vasp_ncl "${VASP_SOURCES}")
 
+if(VASP_VASPML)
+  add_subdirectory(vaspml)
+  foreach(_vasp_variant vasp_std vasp_gam vasp_ncl)
+    target_link_libraries(${_vasp_variant} PRIVATE vaspml)
+  endforeach()
+endif()
+
 install(TARGETS vasp_std DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(TARGETS vasp_gam DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(TARGETS vasp_ncl DESTINATION ${CMAKE_INSTALL_BINDIR})

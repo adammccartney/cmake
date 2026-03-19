@@ -104,6 +104,7 @@ option(VASP_MPI_INPLACE "Use MPI inplace" ON)
 
 option(VASP_OPENMP "Enable OpenMP" OFF)
 option(VASP_PLUGINS "Enable VASP Plugin support" OFF)
+option(VASP_VASPML "Enable VASPml machine learning library (experimental)" OFF)
 option(VASP_FFTLIB "Enable internal FFTLIB" OFF)
 option(VASP_SCALAPACK "Enable ScaLAPACK" ON)
 option(VASP_QD_EMULATE "use QD library for quadruple precision types" OFF)
@@ -173,8 +174,12 @@ if(VASP_OPENMP OR VASP_OMP_OFFLOAD)
 endif()
 
 message(STATUS "-------- MPI detection ------------------")
+set(_MPI_COMPONENTS Fortran)
+if(VASP_VASPML)
+  list(APPEND _MPI_COMPONENTS CXX)
+endif()
 find_package(MPI MODULE REQUIRED
-  COMPONENTS Fortran)
+  COMPONENTS ${_MPI_COMPONENTS})
 list(APPEND VASP_EXTERNAL_LIBS MPI::MPI_Fortran)
 
 # get library dirs for external MPI enabled libraries, like scalapack
@@ -643,6 +648,7 @@ set(VASP_DEFINITIONS
   $<$<BOOL:${VASP_SCALAPACK}>:scaLAPACK>
   $<$<BOOL:${VASP_HDF5}>:VASP_HDF5>
   $<$<BOOL:${VASP_PLUGINS}>:PLUGINS>
+  $<$<BOOL:${VASP_VASPML}>:libvaspml>
   $<$<BOOL:${VASP_LIBXC}>:USELIBXC>
   $<$<BOOL:${VASP_WANNIER90}>:VASP2WANNIER90>
   $<$<BOOL:${VASP_QD_EMULATE}>:qd_emulate>
