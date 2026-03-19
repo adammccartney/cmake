@@ -5,7 +5,7 @@ This repository contains the CMake build system files for VASP.
 After you downloaded an official VASP source tarball you can clone this repository and follow the steps outlined below to use cmake to build VASP.
 
 Branching follows VASP major releases: for each major release there is a matching
-branch named `6.6.x`, etc.
+branch named `6.6.x`, `6.5.x` etc.
 
 Build steps using cmake:
 
