@@ -41,7 +41,7 @@ set_mode_flags("Fortran" "MINSIZEREL" "")
 
 message(STATUS "-------- compiler detection -------------")
 project(vasp
-  VERSION 6.5.0
+  VERSION 6.5.1
   DESCRIPTION "VASP"
   LANGUAGES Fortran C CXX)
 
